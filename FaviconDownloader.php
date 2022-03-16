@@ -40,7 +40,7 @@ class FaviconDownloader
     /**
      * Download page and search html to find favicon URL. Returns favicon URL.
      */
-    public function getFaviconUrl()
+    public function getFaviconUrl($prefered_format = 'png', $prefered_size = 32)
     {
         // If already executed, don't need to search again
         if(!empty($this->icoUrl)){
@@ -88,14 +88,30 @@ class FaviconDownloader
             $this->debugInfo['base_href'] = &$base_href;
         }
 
-        // HTML <link> icon tag analysis
-        if(preg_match('#<\s*link[^>]*(rel=(["\'])[^>\2]*icon[^>\2]*\2)[^>]*>#i', $htmlHead, $matches)){
-            $link_tag = $matches[0];
+        // HTML <links> icon tag analysis
+        $match = null;
+        $best_same_format = null;
+        $best_fallback = null;
+        // first rel="icon" strict
+        if(preg_match_all('#<\s*link[^>]*(rel=(["\'])icon\2)[^>]*>#i', $htmlHead, $matches)){
+            [$match, $best_same_format, $best_fallback] = self::findBestLink($matches[0], $prefered_format, $prefered_size);
+        }
+
+        // then rel="*icon*"
+        if(!$match and preg_match_all('#<\s*link[^>]*(rel=(["\'])[^>\2]*icon[^>\2]*\2)[^>]*>#i', $htmlHead, $matches)){
+            [$match, $best_same_format2, $best_fallback2] = self::findBestLink($matches[0], $prefered_format, $prefered_size);
+        }
+
+        $found = [$match, $best_same_format, $best_same_format2, $best_fallback, $best_fallback2];
+        $found = array_filter($found);
+
+        if(count($found)){
+            $link_tag = reset($found);
             $this->debugInfo['link_tag'] = &$link_tag;
 
             // HTML <link> icon tag href analysis
-            if(preg_match('#href\s*=\s*(["\'])(.*?)\1#i', $link_tag, $matches)){
-                $ico_href = trim($matches[2]);
+            if($infos = self::parseLink($link_tag)){
+                $ico_href = trim($infos['href']);
                 $this->debugInfo['ico_href'] = &$ico_href;
                 $this->findMethod = 'head';
 
@@ -134,6 +150,50 @@ class FaviconDownloader
 
         $this->icoType = self::getExtension($this->icoUrl);
         return $this->icoUrl;
+    }
+
+    public static function parseLink($link_tag) {
+        if(preg_match('#href\s*=\s*(["\'])(.*?)\1#i', $link_tag, $matches)){
+            $href = trim($matches[2]);
+            $infos = [
+                'href' => $href,
+                'ext' => self::getExtension($href),
+                'size' => '',
+            ];
+            if (preg_match('#sizes\s*=\s*(["\'])(\d+)(x\d+)?\1#i', $link_tag, $matches)){
+                $infos['size'] = intval($matches[2]);
+            }
+
+            return $infos;
+        }
+        else {
+            return false;
+        }
+    }
+
+    public static function findBestLink($links, $prefered_format, $prefered_size) {
+        $match = null;
+        $best_same_format = null;
+        $best_fallback = null;
+        foreach ($links as $link) {
+            $infos = self::parseLink($link);
+            if ($infos['ext'] === $prefered_format) {
+                if ($prefered_format === 'svg' or $infos['size'] == $prefered_size) {
+                    $match = $link;
+                    break;
+                }
+                elseif(!$best_same_format) {
+                    $best_same_format = $link;
+                }
+            }
+            elseif($infos['ext'] === 'png'){
+                if (!$best_fallback or $infos['size'] == $prefered_size) {
+                    $best_fallback = $link;
+                }
+            }
+        }
+
+        return [$match, $best_same_format, $best_fallback];
     }
 
     /**
@@ -228,6 +288,9 @@ class FaviconDownloader
             $url = parse_url($filename);
             $filename = $url['path'];
         }
+
+        $filename = explode('?', $filename);
+        $filename = reset($filename);
 
         $info = pathinfo($filename);
         return isset($info['extension']) ? $info['extension'] : "";
