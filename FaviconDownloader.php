@@ -85,6 +85,20 @@ class FaviconDownloader
         $base_href = null;
         if(preg_match('#<base[^>]+href=(["\'])([^>]+)\1#i', $htmlHead, $matches)){
             $base_href = rtrim($matches[2],'/').'/';
+            $urlType = self::urlType($base_href);
+            switch($urlType){
+                case 'absolue_full':
+                    break;
+                case 'absolute_scheme':
+                    $base_href = $pageUrlInfo['scheme'].':'.$base_href;
+                    break;
+                case 'absolute_path':
+                    $base_href = rtrim($this->siteUrl, '/') . '/' . $base_href;
+                    break;
+                case 'relative':
+                    $base_href = null;
+                    break;
+            }
             $this->debugInfo['base_href'] = &$base_href;
         }
 
@@ -104,6 +118,10 @@ class FaviconDownloader
 
         $found = [$match, $best_same_format, $best_same_format2, $best_fallback, $best_fallback2];
         $found = array_filter($found);
+
+        if (empty($found) and $matches) {
+            $found = $matches[0];
+        }
 
         if(count($found)){
             $link_tag = reset($found);
@@ -186,7 +204,7 @@ class FaviconDownloader
                     $best_same_format = $link;
                 }
             }
-            elseif($infos['ext'] === 'png'){
+            elseif(in_array($infos['ext'], ['png', 'ico'])){
                 if (!$best_fallback or $infos['size'] == $prefered_size) {
                     $best_fallback = $link;
                 }
