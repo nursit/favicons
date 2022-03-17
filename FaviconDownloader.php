@@ -196,7 +196,7 @@ class FaviconDownloader
     public static function findBestLink($links, $prefered_format, $prefered_size) {
         $match = null;
         $best_same_format = null;
-        $best_fallback = null;
+        $best_fallback = [];
         foreach ($links as $link) {
             $infos = self::parseLink($link);
             if ($infos['ext'] === $prefered_format) {
@@ -209,10 +209,16 @@ class FaviconDownloader
                 }
             }
             elseif(in_array($infos['ext'], ['png', 'ico'])){
-                if (!$best_fallback or $infos['size'] == $prefered_size) {
-                    $best_fallback = $link;
+                if (empty($best_fallback[$infos['ext']]) or $infos['size'] == $prefered_size) {
+                    $best_fallback[$infos['ext']] = $link;
                 }
             }
+        }
+        if (!empty($best_fallback['png'])) {
+            $best_fallback = $best_fallback['png'];
+        }
+        else {
+            $best_fallback = reset($best_fallback);
         }
 
         return [$match, $best_same_format, $best_fallback];
