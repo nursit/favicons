@@ -115,7 +115,7 @@ class FaviconDownloader
 
         // then rel="*icon*"
         $this->debugInfo['icon_match2'] = false;
-        if(!$match and preg_match_all('#<\s*link[^>]*(rel=(["\'])[^>\2]*icon[^>\2]*\2)[^>]*>#i', $htmlHead, $matches)){
+        if(!$match and preg_match_all('#<\s*link[^>]*(rel=(["\'])[^>"\']*icon[^>"\']*\2)[^>]*>#i', $htmlHead, $matches)){
             [$match, $best_same_format2, $best_fallback2] = self::findBestLink($matches[0], $prefered_format, $prefered_size);
             $this->debugInfo['icon_match2'] = $matches[0];
         }
